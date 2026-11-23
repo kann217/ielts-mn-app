@@ -54,7 +54,7 @@ async function lookup(word) {
   const skip = new Set([key, dict.lemma]);
   const related = [...new Set([...dict.synonyms, ...rel])].filter((x) => !skip.has(x) && /^[a-z-]+$/i.test(x)).slice(0, 6);
   const tr = await mtTranslate([dict.lemma || key, ...related]);
-  const mn = (tr && tr[0]) || localProvider(key) || null;
+  const mn = localProvider(key) || (tr && tr[0]) || null; // curated offline entries beat machine translation
   const data = {
     word: key, pos: dict.pos, def: dict.def, example: dict.example, mn,
     related: related.map((en, i) => ({ en, mn: (tr && tr[i + 1]) || null })),
