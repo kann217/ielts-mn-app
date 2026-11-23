@@ -1,7 +1,7 @@
 // Cloud sync via Supabase (email magic-link login, one JSON row per user).
 const Sync = (() => {
   const enabled = !!(window.SUPABASE_URL && window.SUPABASE_ANON_KEY && window.supabase);
-  const st = { enabled, user: null, msg: "" };
+  const st = { enabled, ready: !enabled, user: null, msg: "" };
   let client, timer, pulling = false;
 
   const note = (msg) => { st.msg = msg; window.appApi?.onSync(); };
@@ -47,8 +47,14 @@ const Sync = (() => {
   }
 
   async function signIn(email) {
-    const { error } = await client.auth.signInWithOtp({ email, options: { emailRedirectTo: location.origin + location.pathname } });
-    note(error ? "Couldn't send link: " + error.message : "Check your email for the sign-in link");
+    // shouldCreateUser:false -> only accounts that already exist can sign in.
+    const { error } = await client.auth.signInWithOtp({ email, options: { shouldCreateUser: false, emailRedirectTo: location.origin + location.pathname } });
+    note(error ? (/signup/i.test(error.message) ? "This email isn't registered for this app." : "Couldn't send link: " + error.message) : "Check your email for the sign-in link");
+  }
+  async function token() {
+    if (!client) return null;
+    const { data } = await client.auth.getSession();
+    return data.session ? data.session.access_token : null;
   }
   async function signOut() { await client.auth.signOut(); }
 
@@ -56,8 +62,11 @@ const Sync = (() => {
     client = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
     client.auth.onAuthStateChange((_ev, session) => {
       st.user = session?.user || null;
-      if (st.user) pull(); else note("");
+      st.ready = true;
+      if (st.user) { note("Syncing…"); pull(); } else note("");
     });
+  } else {
+    setTimeout(() => window.appApi?.onSync(), 0);
   }
-  return { st, schedule, signIn, signOut };
+  return { st, schedule, signIn, signOut, token };
 })();

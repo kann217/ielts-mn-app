@@ -49,9 +49,9 @@ function grade(w, g) { // g: 0 again, 1 hard, 2 good, 3 easy
   }
   save("words", state.words);
 }
-function addWord(w, t) {
+function addWord(w, t, extra = {}) {
   if (state.words.some((x) => x.w === w)) return;
-  state.words.push({ w, t, ease: 2.5, interval: 0, due: Date.now(), u: Date.now() });
+  state.words.push({ w, t, ...extra, ease: 2.5, interval: 0, due: Date.now(), u: Date.now() });
   save("words", state.words);
 }
 
@@ -99,16 +99,23 @@ function viewPractice() {
   ${state.sheet ? sheetHtml() : ""}`;
 }
 function sheetHtml() {
-  const s = state.sheet, saved = state.words.some((x) => x.w === s.w);
-  return `<div class="sheet"><div class="row"><b>${esc(s.w)}</b><button id="x" style="background:none;border:0;color:var(--mute)">Close</button></div>
-  <div class="tr">${s.t === undefined ? "Looking up…" : s.t ? esc(s.t) : "<span class='mute' style='font-size:15px;font-weight:400'>No translation found</span>"}</div>
-  ${s.t ? `<button class="btn ghost" id="addw">${saved ? "Saved" : "Save to words"}</button>` : ""}</div>`;
+  const s = state.sheet, d = s.data;
+  const head = `<div class="row"><b>${esc(s.w)}${d && d.pos ? ` <span class="mute">· ${esc(d.pos)}</span>` : ""}</b><button id="x" style="background:none;border:0;color:var(--mute)">Close</button></div>`;
+  if (!d) return `<div class="sheet">${head}<div class="mute" style="margin-top:6px">Looking up…</div></div>`;
+  const saved = state.words.some((x) => x.w === d.word);
+  const rel = d.related.length ? `<div class="mute" style="margin-top:10px">Related words</div><div class="rels">${d.related.map((r) => `<button class="rel" data-rw="${esc(r.en)}">${esc(r.en)}${r.mn ? " · " + esc(r.mn) : ""}</button>`).join("")}</div>` : "";
+  const body = d.mn || d.def
+    ? `<div class="tr">${d.mn ? esc(d.mn) : "<span class='mute' style='font-size:15px;font-weight:400'>No Mongolian translation</span>"}</div>
+       ${d.def ? `<div style="font-size:15px">${esc(d.def)}</div>` : ""}${d.example ? `<div class="mute" style="margin-top:4px;font-style:italic">“${esc(d.example)}”</div>` : ""}${rel}
+       <button class="btn ghost" id="addw" style="margin-top:12px">${saved ? "Saved" : "Save to words"}</button>`
+    : `<div class="mute" style="margin-top:6px">Nothing found for this word.</div>`;
+  return `<div class="sheet">${head}${body}</div>`;
 }
 
 function viewWords() {
   const due = dueWords(), w = due[0];
   const card = w ? `<div class="card flash"><div class="big">${esc(w.w)}</div>
-    <div style="margin-top:18px">${state.reveal ? `<div class="back">${esc(w.t)}</div>` : `<button class="btn ghost" id="rev" style="width:auto;padding:11px 22px">Show Mongolian</button>`}</div></div>
+    <div style="margin-top:18px">${state.reveal ? `${backHtml(w)}` : `<button class="btn ghost" id="rev" style="width:auto;padding:11px 22px">Show Mongolian</button>`}</div></div>
     ${state.reveal ? `<div class="grade">${["Again", "Hard", "Good", "Easy"].map((n, i) => `<button data-g="${i}">${n}</button>`).join("")}</div>` : ""}`
     : `<div class="card"><b>${state.words.length ? "All caught up" : "No words yet"}</b><p class="mute">${state.words.length ? "Come back later for your next review." : "Tap words while reading to save them here."}</p></div>`;
   return `<h1>Words</h1><div class="mute" style="margin-bottom:8px">${due.length} due · ${state.words.length} total</div>${card}`;
@@ -128,8 +135,27 @@ function viewProgress() {
 }
 
 const views = { today: viewToday, practice: viewPractice, words: viewWords, progress: viewProgress };
+const gated = () => typeof Sync === "undefined" || (Sync.st.enabled && !Sync.st.user);
+function loginHtml() {
+  if (typeof Sync === "undefined" || !Sync.st.ready) return `<div class="card" style="margin-top:30vh;text-align:center"><div class="mute">Loading…</div></div>`;
+  return `<div class="hero" style="margin-top:12vh"><div class="big">IELTS Coach</div><div class="sub">Sign in to continue</div></div>
+  <div class="card"><input type="email" id="em" placeholder="you@example.com" autocomplete="email" style="width:100%;padding:12px;margin-bottom:10px;border:2px solid var(--line);border-radius:12px;font:inherit;background:var(--card);color:var(--ink)">
+  <button class="btn" id="signin">Email me a sign-in link</button>
+  ${Sync.st.msg ? `<div class="mute" style="margin-top:10px">${esc(Sync.st.msg)}</div>` : ""}</div>`;
+}
+function backHtml(w) {
+  const rel = (w.rel || []).filter((r) => r.mn);
+  return `<div class="back">${esc(w.t)}</div>${w.def ? `<div class="mute" style="margin-top:8px">${w.pos ? esc(w.pos) + " · " : ""}${esc(w.def)}</div>` : ""}${rel.length ? `<div class="rels">${rel.map((r) => `<span class="rel">${esc(r.en)} · ${esc(r.mn)}</span>`).join("")}</div>` : ""}`;
+}
+async function openWord(w) {
+  state.sheet = { w }; render();
+  const data = await lookup(w);
+  if (state.sheet && state.sheet.w === w) { state.sheet = { w, data }; render(); }
+}
 function render() {
-  $("#view").innerHTML = views[state.tab]();
+  const lock = gated();
+  $("#nav").style.display = lock ? "none" : "";
+  $("#view").innerHTML = lock ? loginHtml() : views[state.tab]();
   document.querySelectorAll("#nav button").forEach((b) => b.classList.toggle("on", b.dataset.tab === state.tab));
   const e = $("#essay"), wc = $("#wc");
   if (e) { const upd = () => (wc.textContent = (e.value.trim() ? e.value.trim().split(/\s+/).length : 0) + " words"); upd(); e.oninput = () => { save("essay", e.value); upd(); }; }
@@ -141,10 +167,7 @@ document.addEventListener("click", async (ev) => {
   const t = ev.target.closest("button, .w") || ev.target;
   if (t.dataset.tab) return go(t.dataset.tab);
   if (t.dataset.go) return go(t.dataset.go);
-  if (t.dataset.w !== undefined && t.dataset.w) {
-    const w = t.dataset.w; state.sheet = { w }; render();
-    state.sheet = { w, t: await translate(w) }; return render();
-  }
+  if (t.dataset.w || t.dataset.rw) return openWord(t.dataset.w || t.dataset.rw);
   if (t.id === "signin") {
     const em = $("#em").value.trim();
     if (!/^\S+@\S+\.\S+$/.test(em)) { Sync.st.msg = "Enter a valid email"; return render(); }
@@ -152,7 +175,7 @@ document.addEventListener("click", async (ev) => {
   }
   if (t.id === "signout") return Sync.signOut();
   if (t.id === "x") { state.sheet = null; return render(); }
-  if (t.id === "addw") { addWord(state.sheet.w, state.sheet.t); return render(); }
+  if (t.id === "addw") { const d = state.sheet.data; addWord(d.word, d.mn, { pos: d.pos, def: d.def, rel: d.related.filter((r) => r.mn) }); return render(); }
   if (t.dataset.q !== undefined && !state.checked) { state.sel[t.dataset.q] = +t.dataset.o; return render(); }
   if (t.id === "check") { state.checked = true; logSession("reading", PASSAGE.questions.filter((q, i) => state.sel[i] === q.a).length / PASSAGE.questions.length); return render(); }
   if (t.id === "done") { logSession("writing", 1); t.textContent = "Logged"; return; }
@@ -177,7 +200,7 @@ window.appApi = {
     localStorage.setItem("log", JSON.stringify(d.log));
     localStorage.setItem("settings", JSON.stringify(d.settings));
   },
-  onSync: () => { if (state.tab !== "practice") render(); },
+  onSync: () => { const g = gated(); if (g !== state.lastGate || state.tab !== "practice") { state.lastGate = g; render(); } },
 };
 
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});

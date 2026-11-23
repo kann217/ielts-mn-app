@@ -36,6 +36,9 @@ button{font:inherit;cursor:pointer;transition:transform .12s}button:active{trans
 .passage{font-size:18px;line-height:1.9;font-family:Georgia,"Times New Roman",serif}
 .w{border-bottom:2px dotted var(--acc);border-radius:3px;padding:0 1px}.w:active{background:var(--acc2)}
 .sheet{position:fixed;left:12px;right:12px;bottom:calc(88px + env(safe-area-inset-bottom));max-width:536px;margin:0 auto;background:var(--card);border:1px solid var(--line);border-radius:22px;padding:16px 18px;box-shadow:0 12px 36px rgba(40,30,100,.28);animation:pop .22s ease;z-index:5}
+.sheet{max-height:62vh;overflow-y:auto}
+.rels{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.rel{background:var(--acc2);color:var(--acc);border:0;border-radius:99px;padding:5px 11px;font-size:13px;font-weight:600}
 .sheet .tr{font-size:20px;font-weight:700;color:var(--acc);margin:6px 0 10px}
 .opt{display:block;width:100%;text-align:left;background:var(--card);border:2px solid var(--line);border-radius:14px;padding:12px;margin:8px 0;color:var(--ink)}
 .opt.sel{border-color:var(--acc);background:var(--acc2)}.opt.ok{border-color:var(--ok);background:var(--okbg)}.opt.bad{border-color:var(--bad);background:var(--badbg)}
