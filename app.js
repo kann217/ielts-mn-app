@@ -186,13 +186,11 @@ const views = { today: viewToday, practice: viewPractice, words: viewWords, prog
 const gated = () => typeof Sync === "undefined" || (Sync.st.enabled && !Sync.st.user);
 function loginHtml() {
   if (typeof Sync === "undefined" || !Sync.st.ready) return `<div class="card" style="margin-top:30vh;text-align:center"><div class="mute">Loading…</div></div>`;
-  const reg = state.authMode === "register";
   const f = (id, type, ph, ac, val = "") => `<input id="${id}" type="${type}" placeholder="${ph}" autocomplete="${ac}" autocapitalize="none" autocorrect="off" value="${esc(val)}" style="width:100%;padding:13px;margin-bottom:10px;border:2px solid var(--line);border-radius:12px;font:inherit;background:var(--card);color:var(--ink)">`;
-  return `<div class="hero" style="margin-top:8vh"><div class="big">IELTS Coach</div><div class="sub">${reg ? "Create your account" : "Sign in to continue"}</div></div>
-  <div class="card">${f("un", "text", "Username", "username", state.draftUn || "")}${f("pw", "password", "Password (6+ characters)", reg ? "new-password" : "current-password")}${reg ? f("pw2", "password", "Repeat password", "new-password") : ""}
-  <button class="btn" id="dologin">${reg ? "Register" : "Sign in"}</button>
-  <div class="mute" id="amsg" style="margin-top:10px;min-height:1.4em">${esc(Sync.st.msg || "")}</div>
-  <button class="btn ghost" id="authmode" style="margin-top:6px">${reg ? "I already have an account" : "Create an account"}</button></div>`;
+  return `<div class="hero" style="margin-top:8vh"><div class="big">IELTS Coach</div><div class="sub">Sign in to continue</div></div>
+  <div class="card">${f("un", "text", "Username", "username", state.draftUn || "")}${f("pw", "password", "Password", "current-password")}
+  <button class="btn" id="dologin">Sign in</button>
+  <div class="mute" id="amsg" style="margin-top:10px;min-height:1.4em">${esc(Sync.st.msg || "")}</div></div>`;
 }
 function backHtml(w) {
   const rel = (w.rel || []).filter((r) => r.mn);
@@ -225,15 +223,14 @@ document.addEventListener("click", async (ev) => {
   if (t.dataset.tab) return go(t.dataset.tab);
   if (t.dataset.go) return go(t.dataset.go);
   if (t.dataset.w || t.dataset.rw) return openWord(t.dataset.w || t.dataset.rw);
-  if (t.id === "authmode") { state.authMode = state.authMode === "register" ? "login" : "register"; Sync.st.msg = ""; return render(); }
   if (t.id === "dologin") {
-    const id = $("#un").value.trim().toLowerCase(), pw = $("#pw").value, reg = state.authMode === "register";
+    const id = $("#un").value.trim().toLowerCase(), pw = $("#pw").value;
     const bad = !id.includes("@") && !/^[a-z0-9_.-]{3,20}$/.test(id) ? "Username: 3 to 20 letters, numbers, . _ -"
       : pw.length < 6 ? "Password must be at least 6 characters."
-      : reg && pw !== $("#pw2").value ? "Passwords don't match." : "";
+      : "";
     if (bad) { $("#amsg").textContent = bad; return; }
     $("#amsg").textContent = "Please wait…";
-    return reg ? Sync.register(id, pw) : Sync.login(id, pw);
+    return Sync.login(id, pw);
   }
   if (t.id === "signout") return Sync.signOut();
   if (t.id === "x") { state.sheet = null; return render(); }
@@ -249,7 +246,7 @@ document.addEventListener("input", (ev) => {
   if (ev.target.id === "an") state.admin.un = ev.target.value;
   if (ev.target.id === "ap") state.admin.pw = ev.target.value;
 });
-document.addEventListener("keydown", (ev) => { if (ev.key === "Enter" && ["un", "pw", "pw2"].includes(ev.target.id)) $("#dologin").click(); });
+document.addEventListener("keydown", (ev) => { if (ev.key === "Enter" && ["un", "pw"].includes(ev.target.id)) $("#dologin").click(); });
 document.addEventListener("change", (ev) => {
   const s = state.settings;
   if (!["td", "tg", "dw"].includes(ev.target.id)) return;

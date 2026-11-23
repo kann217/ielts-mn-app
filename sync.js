@@ -61,11 +61,6 @@ const Sync = (() => {
     const { error } = await client.auth.signInWithPassword({ email: toEmail(id), password: pw });
     note(error ? friendly(error.message) : "");
   }
-  async function register(id, pw) {
-    const { data, error } = await client.auth.signUp({ email: toEmail(id), password: pw });
-    if (error) return note(friendly(error.message));
-    if (!data.session) note("Account created, but email confirmation is on in Supabase. Turn it off (Authentication > Sign In / Providers > Email).");
-  }
   async function token() {
     if (!client) return null;
     const { data } = await client.auth.getSession();
@@ -83,5 +78,5 @@ const Sync = (() => {
   } else {
     setTimeout(() => window.appApi?.onSync(), 0);
   }
-  return { st, schedule, login, register, signOut, token };
+  return { st, schedule, login, signOut, token };
 })();
