@@ -39,6 +39,9 @@ button{font:inherit;cursor:pointer;transition:transform .12s}button:active{trans
 .sheet{max-height:62vh;overflow-y:auto}
 .rels{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
 .rel{background:var(--acc2);color:var(--acc);border:0;border-radius:99px;padding:5px 11px;font-size:13px;font-weight:600}
+.acts{display:flex;gap:6px;margin-top:10px}
+.mini{flex:1;border:0;border-radius:10px;padding:9px 0;font-size:13px;font-weight:600;background:var(--acc2);color:var(--acc)}
+.mini.danger{background:var(--badbg);color:var(--bad)}
 .sheet .tr{font-size:20px;font-weight:700;color:var(--acc);margin:6px 0 10px}
 .opt{display:block;width:100%;text-align:left;background:var(--card);border:2px solid var(--line);border-radius:14px;padding:12px;margin:8px 0;color:var(--ink)}
 .opt.sel{border-color:var(--acc);background:var(--acc2)}.opt.ok{border-color:var(--ok);background:var(--okbg)}.opt.bad{border-color:var(--bad);background:var(--badbg)}

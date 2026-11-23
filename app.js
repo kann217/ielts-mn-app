@@ -133,7 +133,56 @@ function viewProgress() {
   <div class="card"><h2>Recent</h2>${rows || "<span class='mute'>Nothing yet.</span>"}</div>`;
 }
 
-const views = { today: viewToday, practice: viewPractice, words: viewWords, progress: viewProgress };
+// ---- Admin (only shown to the admin account; the server enforces this too) ----
+const ADMIN_EMAIL = "nyma0082@gmail.com";
+const isAdmin = () => typeof Sync !== "undefined" && !!Sync.st.user && (Sync.st.user.email || "").toLowerCase() === ADMIN_EMAIL;
+const uname = (e) => (e || "").replace("@ielts-mn-app.vercel.app", "");
+state.admin = { users: [], loading: false, msg: "", un: "", pw: "" };
+
+async function adminCall(method, body) {
+  const tok = await Sync.token();
+  try {
+    const r = await fetch("/api/admin-users", { method, headers: { "Content-Type": "application/json", Authorization: "Bearer " + tok }, body: body ? JSON.stringify(body) : undefined });
+    const j = await r.json().catch(() => ({}));
+    return r.ok ? j : { error: j.error || "Error " + r.status };
+  } catch { return { error: "Network error. Is the site deployed on Vercel?" }; }
+}
+async function loadUsers(msg = "") {
+  state.admin.loading = true; state.admin.msg = msg; render();
+  const j = await adminCall("GET");
+  state.admin.loading = false;
+  if (j.error) state.admin.msg = j.error; else state.admin.users = j.users;
+  render();
+}
+async function adminAct(act, id) {
+  const a = state.admin; let j;
+  if (act === "add") {
+    if (!a.un.trim() || a.pw.length < 6) { a.msg = "Enter a username and a password of 6+ characters."; return render(); }
+    j = await adminCall("POST", { username: a.un, password: a.pw });
+    if (!j.error) { a.un = ""; a.pw = ""; }
+  } else {
+    const u = a.users.find((x) => x.id === id); if (!u) return;
+    if (act === "reset") { const p = prompt("New password for " + uname(u.email) + " (6+ characters)"); if (!p) return; j = await adminCall("PUT", { id, password: p }); }
+    if (act === "rename") { const n = prompt("New username for " + uname(u.email), uname(u.email)); if (!n || n === uname(u.email)) return; j = await adminCall("PUT", { id, username: n }); }
+    if (act === "toggle") j = await adminCall("PUT", { id, banned: !u.banned });
+    if (act === "del") { if (!confirm("Delete " + uname(u.email) + "? This can't be undone.")) return; j = await adminCall("DELETE", { id }); }
+  }
+  if (j.error) { a.msg = j.error; return render(); }
+  loadUsers(j.ok || "Done");
+}
+function viewAdmin() {
+  const a = state.admin, me = Sync.st.user.id;
+  const rows = a.users.map((u) => `<div class="card" style="padding:12px"><div class="row"><b>${esc(uname(u.email))}</b>${u.banned ? `<span class="chip" style="background:var(--badbg);color:var(--bad)">disabled</span>` : u.id === me ? `<span class="chip" style="background:var(--acc2);color:var(--acc)">you</span>` : ""}</div>
+    <div class="mute">Joined ${new Date(u.created_at).toLocaleDateString()} · last seen ${u.last_sign_in_at ? new Date(u.last_sign_in_at).toLocaleDateString() : "never"}</div>
+    <div class="acts"><button class="mini" data-act="reset" data-id="${u.id}">Password</button><button class="mini" data-act="rename" data-id="${u.id}">Rename</button>${u.id === me ? "" : `<button class="mini" data-act="toggle" data-id="${u.id}">${u.banned ? "Enable" : "Disable"}</button><button class="mini danger" data-act="del" data-id="${u.id}">Delete</button>`}</div></div>`).join("");
+  const inp = (id, type, ph, val) => `<input id="${id}" type="${type}" placeholder="${ph}" value="${esc(val)}" autocomplete="off" autocapitalize="none" style="width:100%;padding:12px;margin-bottom:8px;border:2px solid var(--line);border-radius:12px;font:inherit;background:var(--card);color:var(--ink)">`;
+  return `<h1>Users</h1>
+  <div class="card"><h2>Add user</h2>${inp("an", "text", "Username (or full email)", a.un)}${inp("ap", "text", "Password (6+ characters)", a.pw)}<button class="btn" data-act="add">Add user</button></div>
+  ${a.msg ? `<div class="mute" style="margin:0 4px 10px">${esc(a.msg)}</div>` : ""}
+  <div class="mute" style="margin:0 4px 8px">${a.loading ? "Loading…" : a.users.length + " users"}</div>${rows}`;
+}
+
+const views = { today: viewToday, practice: viewPractice, words: viewWords, progress: viewProgress, admin: viewAdmin };
 const gated = () => typeof Sync === "undefined" || (Sync.st.enabled && !Sync.st.user);
 function loginHtml() {
   if (typeof Sync === "undefined" || !Sync.st.ready) return `<div class="card" style="margin-top:30vh;text-align:center"><div class="mute">Loading…</div></div>`;
@@ -156,17 +205,23 @@ async function openWord(w) {
 }
 function render() {
   const lock = gated();
+  if (state.tab === "admin" && !isAdmin()) state.tab = "today";
   $("#nav").style.display = lock ? "none" : "";
+  $("#navadmin").style.display = !lock && isAdmin() ? "" : "none";
   $("#view").innerHTML = lock ? loginHtml() : views[state.tab]();
   document.querySelectorAll("#nav button").forEach((b) => b.classList.toggle("on", b.dataset.tab === state.tab));
   const e = $("#essay"), wc = $("#wc");
   if (e) { const upd = () => (wc.textContent = (e.value.trim() ? e.value.trim().split(/\s+/).length : 0) + " words"); upd(); e.oninput = () => { save("essay", e.value); upd(); }; }
 }
-function go(tab) { state.tab = tab; state.sheet = null; state.reveal = false; render(); window.scrollTo(0, 0); }
+function go(tab) {
+  state.tab = tab; state.sheet = null; state.reveal = false; render(); window.scrollTo(0, 0);
+  if (tab === "admin" && isAdmin()) loadUsers();
+}
 
 // ---- Events ----
 document.addEventListener("click", async (ev) => {
   const t = ev.target.closest("button, .w") || ev.target;
+  if (t.dataset.act) return adminAct(t.dataset.act, t.dataset.id);
   if (t.dataset.tab) return go(t.dataset.tab);
   if (t.dataset.go) return go(t.dataset.go);
   if (t.dataset.w || t.dataset.rw) return openWord(t.dataset.w || t.dataset.rw);
@@ -189,7 +244,11 @@ document.addEventListener("click", async (ev) => {
   if (t.id === "rev") { state.reveal = true; return render(); }
   if (t.dataset.g !== undefined) { grade(dueWords()[0], +t.dataset.g); state.reveal = false; if (!dueWords().length) logSession("vocab", 1); return render(); }
 });
-document.addEventListener("input", (ev) => { if (ev.target.id === "un") state.draftUn = ev.target.value; });
+document.addEventListener("input", (ev) => {
+  if (ev.target.id === "un") state.draftUn = ev.target.value;
+  if (ev.target.id === "an") state.admin.un = ev.target.value;
+  if (ev.target.id === "ap") state.admin.pw = ev.target.value;
+});
 document.addEventListener("keydown", (ev) => { if (ev.key === "Enter" && ["un", "pw", "pw2"].includes(ev.target.id)) $("#dologin").click(); });
 document.addEventListener("change", (ev) => {
   const s = state.settings;
