@@ -46,10 +46,25 @@ const Sync = (() => {
     timer = setTimeout(() => push(false), 1500);
   }
 
-  async function signIn(email) {
-    // shouldCreateUser:false -> only accounts that already exist can sign in.
-    const { error } = await client.auth.signInWithOtp({ email, options: { shouldCreateUser: false, emailRedirectTo: location.origin + location.pathname } });
-    note(error ? (/signup/i.test(error.message) ? "This email isn't registered for this app." : "Couldn't send link: " + error.message) : "Check your email for the sign-in link");
+  // Username accounts use a placeholder email under the hood (Supabase auth needs an email).
+  const DOMAIN = "@ielts-mn-app.vercel.app";
+  const toEmail = (id) => { id = id.trim().toLowerCase(); return id.includes("@") ? id : id + DOMAIN; };
+  const friendly = (m) =>
+    /invalid login/i.test(m) ? "Wrong username or password." :
+    /already registered|already been registered/i.test(m) ? "That username is taken." :
+    /password/i.test(m) ? m :
+    /rate limit|too many/i.test(m) ? "Too many attempts. Try again in a few minutes." :
+    /signups? (are )?(not allowed|disabled)/i.test(m) ? "Registration is closed." :
+    /invalid/i.test(m) ? "That username isn't allowed." : m;
+
+  async function login(id, pw) {
+    const { error } = await client.auth.signInWithPassword({ email: toEmail(id), password: pw });
+    note(error ? friendly(error.message) : "");
+  }
+  async function register(id, pw) {
+    const { data, error } = await client.auth.signUp({ email: toEmail(id), password: pw });
+    if (error) return note(friendly(error.message));
+    if (!data.session) note("Account created, but email confirmation is on in Supabase. Turn it off (Authentication > Sign In / Providers > Email).");
   }
   async function token() {
     if (!client) return null;
@@ -68,5 +83,5 @@ const Sync = (() => {
   } else {
     setTimeout(() => window.appApi?.onSync(), 0);
   }
-  return { st, schedule, signIn, signOut, token };
+  return { st, schedule, login, register, signOut, token };
 })();
